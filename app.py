@@ -128,7 +128,7 @@ footer {visibility: hidden;}
 # =========================
 # HEADER
 # =========================
-st.markdown('<div class="header">📁 CONVERT PDF TO EXCEL ( SM ) </div>', unsafe_allow_html=True)
+st.markdown('<div class="header">📁 OCR Drive Tool</div>', unsafe_allow_html=True)
 
 # =========================
 # UPLOADER
