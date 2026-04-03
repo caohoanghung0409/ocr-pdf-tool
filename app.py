@@ -26,7 +26,7 @@ if "clear_uploader" not in st.session_state:
     st.session_state.clear_uploader = False
 
 # =========================
-# STYLE
+# STYLE (CLEAN UI)
 # =========================
 st.markdown("""
 <style>
@@ -58,30 +58,17 @@ footer {visibility: hidden;}
 
 /* FILE ROW */
 .file-row {
-    margin-top:12px;
+    font-size:14px;
+    margin-top:10px;
 }
 
 .file-name {
     font-weight:500;
 }
 
-/* PDF ICON */
-.pdf-icon {
-    display:inline-block;
-    background:linear-gradient(135deg,#ef4444,#dc2626);
-    color:white;
-    font-size:11px;
-    font-weight:600;
-    padding:3px 6px;
-    border-radius:6px;
-    margin-right:6px;
-    letter-spacing:0.5px;
-}
-
-/* STATUS */
 .file-status {
-    font-size:13px;
     color:#64748b;
+    font-size:13px;
 }
 
 /* PROGRESS */
@@ -90,37 +77,12 @@ footer {visibility: hidden;}
     background:#e5e7eb;
     border-radius:10px;
     overflow:hidden;
-    margin-top:6px;
-    position: relative;
+    margin-top:4px;
 }
 
 .progress-bar {
     height:100%;
     background:linear-gradient(90deg,#0ea5e9,#22c55e);
-    transition: width 0.3s ease;
-}
-
-/* SHIMMER */
-.progress-anim::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: -40%;
-    height: 100%;
-    width: 40%;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255,255,255,0.6),
-        transparent
-    );
-    animation: shimmer 1.2s infinite;
-}
-
-@keyframes shimmer {
-    100% {
-        left: 120%;
-    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -128,7 +90,7 @@ footer {visibility: hidden;}
 # =========================
 # HEADER
 # =========================
-st.markdown('<div class="header">📁 OCR Drive Tool</div>', unsafe_allow_html=True)
+st.markdown('<div class="header">📁 CHECK PDF TO EXCEL ( SM ) </div>', unsafe_allow_html=True)
 
 # =========================
 # UPLOADER
@@ -147,8 +109,8 @@ uploaded_files = st.file_uploader(
 # =========================
 def process_page(img):
     text = pytesseract.image_to_string(img, lang='eng', config='--oem 3 --psm 6')
-    sm = re.search(r"(SM\\d{4}\\.\\d{4})", text)
-    date = re.search(r"(\\d{2}/\\d{2}/\\d{4})", text)
+    sm = re.search(r"(SM\d{4}\.\d{4})", text)
+    date = re.search(r"(\d{2}/\d{2}/\d{4})", text)
     return (sm.group(1), date.group(1)) if sm and date else (None, None)
 
 # =========================
@@ -165,11 +127,9 @@ def extract_pdf(file, box, idx, total, global_bar):
 
         html = f"""
 <div class="file-row">
-    <div class="file-name">
-        <span class="pdf-icon">PDF</span> {file.name}
-    </div>
-    <div class="file-status">Đang xử lý • Trang {i}/{total_pages} • {percent}%</div>
-    <div class="progress progress-anim">
+    <div class="file-name">📄 {file.name}</div>
+    <div class="file-status">Trang {i}/{total_pages} • {percent}%</div>
+    <div class="progress">
         <div class="progress-bar" style="width:{percent}%"></div>
     </div>
 </div>
@@ -177,25 +137,13 @@ def extract_pdf(file, box, idx, total, global_bar):
         box.markdown(html, unsafe_allow_html=True)
         global_bar.progress(global_percent)
 
+        # crop top
         w, h = img.size
         img = img.crop((0, 0, w, int(h * 0.4)))
 
         sm, date = process_page(img)
         if sm and date:
             results.append({"SM": sm, "Ngày": date})
-
-    # DONE
-    box.markdown(f"""
-<div class="file-row">
-    <div class="file-name">
-        <span class="pdf-icon">PDF</span> {file.name}
-    </div>
-    <div class="file-status">✅ Hoàn tất</div>
-    <div class="progress">
-        <div class="progress-bar" style="width:100%"></div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
 
     return results
 
@@ -205,6 +153,7 @@ def extract_pdf(file, box, idx, total, global_bar):
 if uploaded_files:
 
     global_bar = st.progress(0)
+
     boxes = [st.empty() for _ in uploaded_files]
 
     if not st.session_state.processing and not st.session_state.done:
