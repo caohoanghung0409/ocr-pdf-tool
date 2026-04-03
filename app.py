@@ -207,7 +207,7 @@ if st.session_state.done:
     if st.download_button(
         "📥 Download ZIP",
         zip_data,
-        file_name="ocr_results.zip",
+        file_name="THLTOOL.zip",
         mime="application/zip"
     ):
         st.toast("✅ Download xong!", icon="🎉")
