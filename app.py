@@ -7,6 +7,7 @@ import tempfile
 import zipfile
 import os
 import time
+import base64
 from openpyxl import load_workbook
 
 # =========================
@@ -26,9 +27,11 @@ if "done" not in st.session_state:
 if "clear_uploader" not in st.session_state:
     st.session_state.clear_uploader = False
 
-# 🔥 NEW: lưu danh sách file trước đó
 if "last_uploaded_names" not in st.session_state:
     st.session_state.last_uploaded_names = []
+
+if "zip" not in st.session_state:
+    st.session_state.zip = None
 
 # =========================
 # STYLE PRO MAX
@@ -73,6 +76,11 @@ div.stButton > button {
 div.stButton > button:hover {
     transform: translateY(-2px) scale(1.02);
     box-shadow:0 8px 20px rgba(0,0,0,0.2);
+}
+
+/* new button */
+.new-btn button {
+    background: linear-gradient(135deg,#f59e0b,#ef4444) !important;
 }
 
 /* spacing */
@@ -184,9 +192,7 @@ uploaded_files = st.file_uploader(
     key=uploader_key
 )
 
-# =========================
-# 🔥 DETECT CHANGE FILE LIST
-# =========================
+# detect change
 current_names = [f.name for f in uploaded_files] if uploaded_files else []
 
 if current_names != st.session_state.last_uploaded_names:
@@ -324,7 +330,7 @@ if uploaded_files:
         st.rerun()
 
 # =========================
-# DOWNLOAD
+# DOWNLOAD (AUTO ONLY - FIX ĐÚNG)
 # =========================
 if st.session_state.done:
 
@@ -333,14 +339,17 @@ if st.session_state.done:
     with open(st.session_state.zip, "rb") as f:
         zip_data = f.read()
 
-    if st.download_button(
-        "📥 TẢI FILE",
-        zip_data,
-        file_name="THL PDF TO EXCEL.zip",
-        mime="application/zip"
-    ):
-        st.toast("✅ Download xong!", icon="🎉")
+    b64 = base64.b64encode(zip_data).decode()
 
+    # ⚡ AUTO DOWNLOAD (KHÔNG PHÁ UI)
+    st.markdown(f"""
+        <iframe src="data:application/zip;base64,{b64}" style="display:none;"></iframe>
+    """, unsafe_allow_html=True)
+
+    # 🔁 xử lý file mới (GIỮ FLOW CHUẨN)
+    st.markdown('<div class="new-btn">', unsafe_allow_html=True)
+    if st.button("🔄 XỬ LÝ FILE MỚI"):
         st.session_state.done = False
         st.session_state.clear_uploader = not st.session_state.clear_uploader
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
