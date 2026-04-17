@@ -30,7 +30,7 @@ if "excel_file" not in st.session_state:
     st.session_state.excel_file = None
 
 # =========================
-# STYLE PRO MAX (GIỮ NGUYÊN 100%)
+# STYLE (GIỮ NGUYÊN)
 # =========================
 st.markdown("""
 <style>
@@ -186,7 +186,7 @@ if current_names != st.session_state.last_uploaded_names:
     st.session_state.last_uploaded_names = current_names
 
 # =========================
-# OCR FIX (CHỈ THAY PHẦN NÀY)
+# OCR
 # =========================
 def ocr_extract(img):
 
@@ -198,44 +198,22 @@ def ocr_extract(img):
 
     w, h = img.size
 
-    sm, date = read(img)
-    if sm and date:
-        return sm.group(1), date.group(1)
-
-    crop = img.crop((0, 0, w, int(h * 0.4)))
-    sm, date = read(crop)
-    if sm and date:
-        return sm.group(1), date.group(1)
-
-    img180 = img.rotate(180, expand=True)
-    sm, date = read(img180)
-    if sm and date:
-        return sm.group(1), date.group(1)
-
-    w2, h2 = img180.size
-    crop180 = img180.crop((0, 0, w2, int(h2 * 0.4)))
-    sm, date = read(crop180)
-    if sm and date:
-        return sm.group(1), date.group(1)
-
-    img90 = img.rotate(90, expand=True)
-    w3, h3 = img90.size
-    crop90 = img90.crop((0, 0, w3, int(h3 * 0.4)))
-    sm, date = read(crop90)
-    if sm and date:
-        return sm.group(1), date.group(1)
-
-    img270 = img.rotate(270, expand=True)
-    w4, h4 = img270.size
-    crop270 = img270.crop((0, 0, w4, int(h4 * 0.4)))
-    sm, date = read(crop270)
-    if sm and date:
-        return sm.group(1), date.group(1)
+    for variant in [
+        img,
+        img.crop((0,0,w,int(h*0.4))),
+        img.rotate(180, expand=True),
+        img.rotate(180, expand=True).crop((0,0,w,int(h*0.4))),
+        img.rotate(90, expand=True),
+        img.rotate(270, expand=True)
+    ]:
+        sm, date = read(variant)
+        if sm and date:
+            return sm.group(1), date.group(1)
 
     return None, None
 
 # =========================
-# GLOBAL BAR (FULL)
+# GLOBAL BAR
 # =========================
 def render_global_bar(percent, speed, eta):
     return f"""
@@ -252,7 +230,7 @@ def render_global_bar(percent, speed, eta):
 """
 
 # =========================
-# PROCESS PDF
+# PROCESS
 # =========================
 def extract_pdf(file, box, global_box, start_time, processed_pages, total_pages_all):
 
@@ -295,7 +273,7 @@ def extract_pdf(file, box, global_box, start_time, processed_pages, total_pages_
     return results
 
 # =========================
-# MAIN (GIỮ NGUYÊN)
+# MAIN
 # =========================
 if uploaded_files:
 
@@ -338,7 +316,11 @@ if uploaded_files:
                 if data:
                     df = pd.DataFrame(data)
                     df.insert(0, "STT", range(1, len(df)+1))
-                    df.to_excel(writer, sheet_name=f.name[:31], index=False)
+
+                    # ✅ CHỈ SỬA DUY NHẤT
+                    sheet_name = os.path.splitext(f.name)[0][:31]
+
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
 
         wb = load_workbook(tmp_excel.name)
 
@@ -365,7 +347,7 @@ if uploaded_files:
         st.rerun()
 
 # =========================
-# DOWNLOAD (GIỮ NGUYÊN)
+# DOWNLOAD
 # =========================
 if st.session_state.done:
 
