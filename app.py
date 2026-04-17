@@ -213,14 +213,17 @@ def ocr_extract(img):
     return None, None
 
 # =========================
-# GLOBAL BAR
+# GLOBAL BAR (CHỈ HIỂN THỊ ETA)
 # =========================
 def render_global_bar(percent, speed, eta):
+
+    eta_text = "Sắp xong..." if eta == 0 else f"{eta//60}m {eta%60}s"
+
     return f"""
 <div class="global-wrap">
     <div class="global-meta">
         <div>⚡ {percent}%</div>
-        <div>🚀 {speed:.2f} pages/s • ⏳ {eta}s</div>
+        <div>⏳ {eta_text}</div>
     </div>
     <div class="global-bar">
         <div class="global-fill" style="width:{percent}%; background:linear-gradient(90deg,#3b82f6,#22c55e);"></div>
@@ -317,7 +320,6 @@ if uploaded_files:
                     df = pd.DataFrame(data)
                     df.insert(0, "STT", range(1, len(df)+1))
 
-                    # ✅ CHỈ SỬA DUY NHẤT
                     sheet_name = os.path.splitext(f.name)[0][:31]
 
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
