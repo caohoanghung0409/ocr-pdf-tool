@@ -4,11 +4,11 @@ from pdf2image import convert_from_bytes
 import pandas as pd
 import re
 import tempfile
-import zipfile
 import os
 import time
 import base64
 from openpyxl import load_workbook
+from openpyxl.styles import Border, Side, Font
 
 # =========================
 # CONFIG
@@ -30,11 +30,11 @@ if "clear_uploader" not in st.session_state:
 if "last_uploaded_names" not in st.session_state:
     st.session_state.last_uploaded_names = []
 
-if "zip" not in st.session_state:
-    st.session_state.zip = None
+if "excel_file" not in st.session_state:
+    st.session_state.excel_file = None
 
 # =========================
-# STYLE PRO MAX
+# STYLE PRO MAX (GIỮ NGUYÊN)
 # =========================
 st.markdown("""
 <style>
@@ -192,7 +192,6 @@ uploaded_files = st.file_uploader(
     key=uploader_key
 )
 
-# detect change
 current_names = [f.name for f in uploaded_files] if uploaded_files else []
 
 if current_names != st.session_state.last_uploaded_names:
@@ -261,9 +260,21 @@ def extract_pdf(file, box, global_box, start_time, processed_pages, total_pages_
 
         sm, date = process_page(img)
         if sm and date:
-            results.append({"SM": sm, "Ngày": date})
+            results.append({
+                "SM": sm,
+                "Ngày": date,
+                "Trang": i
+            })
 
     return results
+
+# =========================
+# CLEAN SHEET NAME
+# =========================
+def clean_sheet_name(name):
+    name = os.path.splitext(name)[0]
+    name = re.sub(r'[\\/*?:\[\]]', '', name)
+    return name[:31]
 
 # =========================
 # MAIN
@@ -295,9 +306,10 @@ if uploaded_files:
 
         processed_pages = [0]
 
-        zip_buffer = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+        tmp_excel = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
 
-        with zipfile.ZipFile(zip_buffer.name, "w") as zipf:
+        with pd.ExcelWriter(tmp_excel.name, engine='openpyxl') as writer:
+
             for i, f in enumerate(uploaded_files):
 
                 data = extract_pdf(
@@ -309,44 +321,50 @@ if uploaded_files:
                     df = pd.DataFrame(data)
                     df.insert(0, "STT", range(1, len(df)+1))
 
-                    name = os.path.splitext(f.name)[0] + ".xlsx"
+                    sheet_name = clean_sheet_name(f.name)
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-                        df.to_excel(tmp.name, index=False)
+        wb = load_workbook(tmp_excel.name)
 
-                        wb = load_workbook(tmp.name)
-                        ws = wb.active
+        thin = Side(style='thin')
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-                        for col in ws.columns:
-                            max_len = max(len(str(c.value)) if c.value else 0 for c in col)
-                            ws.column_dimensions[col[0].column_letter].width = max_len + 3
+        for ws in wb.worksheets:
 
-                        wb.save(tmp.name)
-                        zipf.write(tmp.name, name)
+            for col in ws.columns:
+                max_len = max(len(str(c.value)) if c.value else 0 for c in col)
+                ws.column_dimensions[col[0].column_letter].width = max_len + 3
 
-        st.session_state.zip = zip_buffer.name
+            for row in ws.iter_rows():
+                for cell in row:
+                    cell.border = border
+
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+
+        wb.save(tmp_excel.name)
+
+        st.session_state.excel_file = tmp_excel.name
         st.session_state.processing = False
         st.session_state.done = True
         st.rerun()
 
 # =========================
-# DOWNLOAD (AUTO ONLY - FIX ĐÚNG)
+# DOWNLOAD
 # =========================
 if st.session_state.done:
 
     st.success("🎉 HOÀN THÀNH !!!")
 
-    with open(st.session_state.zip, "rb") as f:
-        zip_data = f.read()
+    with open(st.session_state.excel_file, "rb") as f:
+        data = f.read()
 
-    b64 = base64.b64encode(zip_data).decode()
+    b64 = base64.b64encode(data).decode()
 
-    # ⚡ AUTO DOWNLOAD (KHÔNG PHÁ UI)
     st.markdown(f"""
-        <iframe src="data:application/zip;base64,{b64}" style="display:none;"></iframe>
+        <iframe src="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" style="display:none;"></iframe>
     """, unsafe_allow_html=True)
 
-    # 🔁 xử lý file mới (GIỮ FLOW CHUẨN)
     st.markdown('<div class="new-btn">', unsafe_allow_html=True)
     if st.button("🔄 XỬ LÝ FILE MỚI"):
         st.session_state.done = False
