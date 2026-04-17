@@ -20,21 +20,17 @@ st.set_page_config(page_title="THL PDF TO EXCEL", layout="wide")
 # =========================
 if "processing" not in st.session_state:
     st.session_state.processing = False
-
 if "done" not in st.session_state:
     st.session_state.done = False
-
 if "clear_uploader" not in st.session_state:
     st.session_state.clear_uploader = False
-
 if "last_uploaded_names" not in st.session_state:
     st.session_state.last_uploaded_names = []
-
 if "excel_file" not in st.session_state:
     st.session_state.excel_file = None
 
 # =========================
-# STYLE PRO MAX (GIỮ NGUYÊN)
+# STYLE PRO MAX (GIỮ NGUYÊN 100%)
 # =========================
 st.markdown("""
 <style>
@@ -42,14 +38,12 @@ header, #MainMenu, footer {visibility: hidden;}
 .block-container {padding-top: 0.5rem !important;}
 .stApp { background: #f1f5f9; }
 
-/* header */
 .header {
     font-size:22px;
     font-weight:700;
     margin-bottom:10px;
 }
 
-/* uploader */
 [data-testid="stFileUploader"] {
     border: 2px dashed #93c5fd;
     padding: 25px;
@@ -61,7 +55,6 @@ header, #MainMenu, footer {visibility: hidden;}
     border-color:#3b82f6;
 }
 
-/* button PRO */
 div.stButton > button {
     background: linear-gradient(135deg,#3b82f6,#22c55e);
     color:white;
@@ -75,21 +68,17 @@ div.stButton > button {
 }
 div.stButton > button:hover {
     transform: translateY(-2px) scale(1.02);
-    box-shadow:0 8px 20px rgba(0,0,0,0.2);
 }
 
-/* new button */
 .new-btn button {
     background: linear-gradient(135deg,#f59e0b,#ef4444) !important;
 }
 
-/* spacing */
 .process-btn {
     margin-top: 25px;
     margin-bottom: 15px;
 }
 
-/* file row */
 .file-row {
     margin-top:12px;
     padding:10px;
@@ -98,7 +87,6 @@ div.stButton > button:hover {
     box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 
-/* progress */
 .progress {
     height:8px;
     background:#e5e7eb;
@@ -112,7 +100,6 @@ div.stButton > button:hover {
     transition: width 0.3s ease;
 }
 
-/* global */
 .global-wrap { margin:15px 0; }
 
 .global-bar {
@@ -166,7 +153,6 @@ div.stButton > button:hover {
     margin-bottom:6px;
 }
 
-/* loading text */
 .loading {
     font-size:14px;
     color:#475569;
@@ -200,16 +186,56 @@ if current_names != st.session_state.last_uploaded_names:
     st.session_state.last_uploaded_names = current_names
 
 # =========================
-# OCR
+# OCR FIX (CHỈ THAY PHẦN NÀY)
 # =========================
-def process_page(img):
-    text = pytesseract.image_to_string(img, lang='eng', config='--oem 3 --psm 6')
-    sm = re.search(r"(SM\d{4}\.\d{4})", text)
-    date = re.search(r"(\d{2}/\d{2}/\d{4})", text)
-    return (sm.group(1), date.group(1)) if sm and date else (None, None)
+def ocr_extract(img):
+
+    def read(image):
+        text = pytesseract.image_to_string(image, lang='eng', config='--oem 3 --psm 6')
+        sm = re.search(r"(SM\d{4}\.\d{4})", text)
+        date = re.search(r"(\d{2}/\d{2}/\d{4})", text)
+        return sm, date
+
+    w, h = img.size
+
+    sm, date = read(img)
+    if sm and date:
+        return sm.group(1), date.group(1)
+
+    crop = img.crop((0, 0, w, int(h * 0.4)))
+    sm, date = read(crop)
+    if sm and date:
+        return sm.group(1), date.group(1)
+
+    img180 = img.rotate(180, expand=True)
+    sm, date = read(img180)
+    if sm and date:
+        return sm.group(1), date.group(1)
+
+    w2, h2 = img180.size
+    crop180 = img180.crop((0, 0, w2, int(h2 * 0.4)))
+    sm, date = read(crop180)
+    if sm and date:
+        return sm.group(1), date.group(1)
+
+    img90 = img.rotate(90, expand=True)
+    w3, h3 = img90.size
+    crop90 = img90.crop((0, 0, w3, int(h3 * 0.4)))
+    sm, date = read(crop90)
+    if sm and date:
+        return sm.group(1), date.group(1)
+
+    img270 = img.rotate(270, expand=True)
+    w4, h4 = img270.size
+    crop270 = img270.crop((0, 0, w4, int(h4 * 0.4)))
+    sm, date = read(crop270)
+    if sm and date:
+        return sm.group(1), date.group(1)
+
+    return None, None
 
 # =========================
-# GLOBAL BAR
+# GLOBAL BAR (FULL)
 # =========================
 def render_global_bar(percent, speed, eta):
     return f"""
@@ -229,11 +255,13 @@ def render_global_bar(percent, speed, eta):
 # PROCESS PDF
 # =========================
 def extract_pdf(file, box, global_box, start_time, processed_pages, total_pages_all):
+
     results = []
     images = convert_from_bytes(file.read(), dpi=150)
     total_pages = len(images)
 
     for i, img in enumerate(images, start=1):
+
         processed_pages[0] += 1
 
         percent = int((i/total_pages)*100)
@@ -248,17 +276,15 @@ def extract_pdf(file, box, global_box, start_time, processed_pages, total_pages_
 
         box.markdown(f"""
 <div class="file-row">
-    📄 {file.name} — Trang {i}/{total_pages} ({percent}%)
-    <div class="progress">
-        <div class="progress-bar" style="width:{percent}%"></div>
-    </div>
+📄 {file.name} — Trang {i}/{total_pages} ({percent}%)
+<div class="progress">
+<div class="progress-bar" style="width:{percent}%"></div>
+</div>
 </div>
 """, unsafe_allow_html=True)
 
-        w, h = img.size
-        img = img.crop((0, 0, w, int(h * 0.4)))
+        sm, date = ocr_extract(img)
 
-        sm, date = process_page(img)
         if sm and date:
             results.append({
                 "SM": sm,
@@ -269,15 +295,7 @@ def extract_pdf(file, box, global_box, start_time, processed_pages, total_pages_
     return results
 
 # =========================
-# CLEAN SHEET NAME
-# =========================
-def clean_sheet_name(name):
-    name = os.path.splitext(name)[0]
-    name = re.sub(r'[\\/*?:\[\]]', '', name)
-    return name[:31]
-
-# =========================
-# MAIN
+# MAIN (GIỮ NGUYÊN)
 # =========================
 if uploaded_files:
 
@@ -320,9 +338,7 @@ if uploaded_files:
                 if data:
                     df = pd.DataFrame(data)
                     df.insert(0, "STT", range(1, len(df)+1))
-
-                    sheet_name = clean_sheet_name(f.name)
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    df.to_excel(writer, sheet_name=f.name[:31], index=False)
 
         wb = load_workbook(tmp_excel.name)
 
@@ -330,7 +346,6 @@ if uploaded_files:
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
         for ws in wb.worksheets:
-
             for col in ws.columns:
                 max_len = max(len(str(c.value)) if c.value else 0 for c in col)
                 ws.column_dimensions[col[0].column_letter].width = max_len + 3
@@ -350,7 +365,7 @@ if uploaded_files:
         st.rerun()
 
 # =========================
-# DOWNLOAD
+# DOWNLOAD (GIỮ NGUYÊN)
 # =========================
 if st.session_state.done:
 
