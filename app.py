@@ -79,8 +79,8 @@ def extract_from_single_pdf(file_bytes, page_callback=None):
         img = bitmap.to_pil()
         w, h = img.size
         
-        # Cắt 30% đầu trang
-        crop = img.crop((0, 0, w, int(h * 0.30)))
+        # Cắt 35% đầu trang để quét đầy đủ cả phiếu Tiền Phong lẫn các đơn vị khác
+        crop = img.crop((0, 0, w, int(h * 0.35)))
         try:
             text = pytesseract.image_to_string(crop, lang='eng')
         except Exception:
@@ -90,13 +90,16 @@ def extract_from_single_pdf(file_bytes, page_callback=None):
         is_tp = ('TIEN PHONG' in text_u or 'THIEU NIEN' in text_u or 'NHUATIENPHONG' in text_u)
         
         if is_tp:
-            sm_match = re.search(r'[\$S§s]M[\s\.:,]*([0-9]{4})[\.,\s_]*([0-9]{4})', text)
+            # 1. TRƯỜNG HỢP ĐÚNG MẪU NHUATIENPHONG: Lấy như cũ (SM, Ngày, Số trang)
+            sm_match = re.search(r'[\$S§s]M[^\d\n]*([0-9]{4})(?:[^\d\n]+([0-9]{2,4}))?', text)
             if not sm_match:
                 sm_match = re.search(r'[\$S§s]M[\s\.:,]*([0-9]{4,8})', text)
                 val = sm_match.group(1) if sm_match else ""
                 sm = f"SM{val[:4]}.{val[4:]}" if len(val) == 8 else (f"SM{val}" if val else None)
             else:
-                sm = f"SM{sm_match.group(1)}.{sm_match.group(2)}"
+                p1_val = sm_match.group(1)
+                p2_val = sm_match.group(2)
+                sm = f"SM{p1_val}.{p2_val}" if p2_val else f"SM{p1_val}"
                 
             date_match = re.search(r'Ng[aàeè]y[\s;:,-]*([0-9]{1,2})[\/\.\-]([0-9]{1,2})[\/\.\-]([0-9]{4})', text, re.IGNORECASE)
             if not date_match:
@@ -106,7 +109,10 @@ def extract_from_single_pdf(file_bytes, page_callback=None):
                 d_val = int(date_match.group(1))
                 m_val = int(date_match.group(2))
                 y_val = date_match.group(3)
-                dt = f"{d_val:02d}/{m_val:02d}/{y_val}"
+                if 1 <= d_val <= 31 and 1 <= m_val <= 12 and len(y_val) == 4:
+                    dt = f"{d_val:02d}/{m_val:02d}/{y_val}"
+                else:
+                    dt = None
             else:
                 dt = None
                 
@@ -116,6 +122,31 @@ def extract_from_single_pdf(file_bytes, page_callback=None):
                     'date': dt,
                     'page': page_num
                 })
+        else:
+            # 2. TRƯỜNG HỢP KHÔNG PHẢI NHUATIENPHONG: Cứ có số SM là lấy, KHÔNG LẤY NGÀY (để trống)
+            matches = re.finditer(r'[\$S§s]M[^\d\n]*([0-9]{4})(?:[^\d\n]+([0-9]{2,4}))?', text)
+            found_sms = []
+            for m in matches:
+                p1_val = m.group(1)
+                p2_val = m.group(2)
+                val = f"SM{p1_val}.{p2_val}" if p2_val else f"SM{p1_val}"
+                if val not in found_sms:
+                    found_sms.append(val)
+                    
+            if not found_sms:
+                simple_match = re.findall(r'[\$S§s]M[\s\.:,]*([0-9]{6,8})', text)
+                for s in simple_match:
+                    val = f"SM{s[:4]}.{s[4:]}"
+                    if val not in found_sms:
+                        found_sms.append(val)
+                        
+            if found_sms:
+                for sm_val in found_sms:
+                    records.append({
+                        'sm': sm_val,
+                        'date': "",  # Không phải Tiền Phong thì không lấy ngày (để trống)
+                        'page': page_num
+                    })
                 
         if page_callback:
             page_callback(page_num, total_pages)
