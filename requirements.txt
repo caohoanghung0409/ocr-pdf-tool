@@ -4,3 +4,4 @@ pytesseract
 Pillow
 openpyxl
 pandas
+opencv-python-headless
