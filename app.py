@@ -66,17 +66,6 @@ def sanitize_sheet_name(name, existing_names):
     existing_names.add(final_name.lower())
     return final_name
 
-def clean_compound_sm(raw_match):
-    """Làm sạch và chuẩn hóa toàn bộ chuỗi số sau SM (ví dụ: SM2609.4531+4532)"""
-    s = raw_match.strip()
-    # Chuẩn hóa tiền tố $M, sM, §M về SM
-    s = re.sub(r'^[\$S§s]M[\s\.:,]*', 'SM', s, flags=re.IGNORECASE)
-    # Loại bỏ dấu phân tách thừa ở cuối chuỗi
-    s = re.sub(r'[\s\.,\+\-\/_]+$', '', s)
-    # Chuẩn hóa dấu phẩy giữa 2 cụm 4 số thành dấu chấm (nếu có: SMxxxx,xxxx -> SMxxxx.xxxx)
-    s = re.sub(r'SM([0-9]{4}),([0-9]{4})', r'SM\1.\2', s)
-    return s
-
 def extract_from_single_pdf(file_bytes, page_callback=None):
     """Trích xuất SM và Ngày từ 1 file PDF"""
     pdf = pdfium.PdfDocument(file_bytes)
@@ -90,7 +79,7 @@ def extract_from_single_pdf(file_bytes, page_callback=None):
         img = bitmap.to_pil()
         w, h = img.size
         
-        # Cắt 35% đầu trang
+        # Cắt 35% đầu trang để quét đầy đủ cả phiếu Tiền Phong lẫn các đơn vị khác
         crop = img.crop((0, 0, w, int(h * 0.35)))
         try:
             text = pytesseract.image_to_string(crop, lang='eng')
@@ -134,21 +123,20 @@ def extract_from_single_pdf(file_bytes, page_callback=None):
                     'page': page_num
                 })
         else:
-            # 2. TRƯỜNG HỢP KHÔNG PHẢI NHUATIENPHONG:
-            # Lấy NGUYÊN DÃY SỐ sau SM (ví dụ: SM2609.4531+4532, SM2609.3768+3769...)
-            # và SỐ TRANG, KHÔNG LẤY NGÀY (để trống "")
-            compound_pattern = r'[\$S§s]M[\s\.:,]*[0-9]+(?:[\s]*[\+\-\/\.,_&][\s]*(?:[\$S§s]M[\s\.:,]*)?[0-9]+)*'
-            matches = re.findall(compound_pattern, text)
+            # 2. TRƯỜNG HỢP KHÔNG PHẢI NHUATIENPHONG: Cứ có số SM là lấy, KHÔNG LẤY NGÀY (để trống)
+            matches = re.finditer(r'[\$S§s]M[^\d\n]*([0-9]{4})(?:[^\d\n]+([0-9]{2,4}))?', text)
             found_sms = []
             for m in matches:
-                cleaned_sm = clean_compound_sm(m)
-                if cleaned_sm and cleaned_sm not in found_sms:
-                    found_sms.append(cleaned_sm)
+                p1_val = m.group(1)
+                p2_val = m.group(2)
+                val = f"SM{p1_val}.{p2_val}" if p2_val else f"SM{p1_val}"
+                if val not in found_sms:
+                    found_sms.append(val)
                     
             if not found_sms:
-                simple_match = re.findall(r'[\$S§s]M[\s\.:,]*([0-9]{4,8})', text)
+                simple_match = re.findall(r'[\$S§s]M[\s\.:,]*([0-9]{6,8})', text)
                 for s in simple_match:
-                    val = f"SM{s[:4]}.{s[4:]}" if len(s) == 8 else f"SM{s}"
+                    val = f"SM{s[:4]}.{s[4:]}"
                     if val not in found_sms:
                         found_sms.append(val)
                         
